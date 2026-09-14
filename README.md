@@ -67,7 +67,7 @@ The `serve-strict-c` / `eval-strict-c` recipes expect an external strict-C llama
 | `scripts/` | C-vs-Python parity gates, audits, sweeps |
 | `tests/` | Unit, integration, and Hypothesis property tests |
 | `train_configs/`, `sweeps/` | Training and sweep configurations |
-| `docs/` | [Design notes](docs/DESIGN.md) |
+| `docs/` | [Design notes](docs/DESIGN.md), [reports](docs/reports/) |
 
 ## Status
 
