@@ -18,7 +18,7 @@ htmlcov/
 # toyForge produced artifacts
 data/
 out/
-reports/
+/reports/
 train_configs/.generated/
 !data/.gitkeep
 
