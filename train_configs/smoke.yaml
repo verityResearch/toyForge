@@ -1,0 +1,22 @@
+base_model: Qwen/Qwen2.5-Coder-3B-Instruct
+method: vanilla
+output_dir: out/smoke
+data:
+  train: data/train.jsonl
+  dev:   data/dev.jsonl
+lora:
+  r: 16
+  alpha: 32
+  target_modules: [q_proj, k_proj, v_proj, o_proj]
+  dropout: 0.0
+context:
+  train: 4096
+optimizer: paged_adamw_8bit
+batch_size: 1
+grad_accum: 8
+lr: 5.0e-5
+warmup_ratio: 0.05
+lr_scheduler_type: cosine
+num_epochs: 1
+attn_impl: sdpa
+seed: 42

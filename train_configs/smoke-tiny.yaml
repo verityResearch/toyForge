@@ -1,0 +1,8 @@
+# Tiny smoke config — 5 seeds × 1 epoch on a tiny model. ~30 seconds end-to-end.
+# Used by `just smoke-tiny` for fast pipeline sanity checks.
+extends: smoke.yaml
+output_dir: out/smoke-tiny
+data:
+  train: data/smoke-tiny/train.jsonl
+  dev: data/smoke-tiny/dev.jsonl
+num_epochs: 1

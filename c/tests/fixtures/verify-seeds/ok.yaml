@@ -1,0 +1,21 @@
+version: "1"
+seeds:
+  - trajectory_id: seed_fixture_open
+    initial_state: NEW
+    difficulty: easy
+    source: hand_seed
+    description: "Open a new ticket from NEW."
+    steps:
+      - prompt_context: { prior_state: NEW, situation: "A customer reports that the office printer is offline." }
+        thinking: "From NEW, ticket_open.accepted moves the object to TRIAGED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_open
+          params:
+            requester_id: "user:alice"
+            body_text: "YWJjZGVm"
+            lifecycle_profile: "std"
+          id: 1
+        expected_trigger: ticket_open.accepted
+        expected_state_after: TRIAGED
+    final_state: TRIAGED

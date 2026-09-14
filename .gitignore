@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+*.log
+c/build*/
+build/
+dist/
+.coverage
+coverage.xml
+htmlcov/
+
+# toyForge produced artifacts
+data/
+out/
+reports/
+train_configs/.generated/
+!data/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db

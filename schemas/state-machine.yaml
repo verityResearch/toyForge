@@ -1,0 +1,70 @@
+# State machine for the support-ticket lifecycle.
+# Source of truth for the verifier's precondition + transition checks.
+
+version: "1"
+
+states:
+  - NEW
+  - TRIAGED
+  - ASSIGNED
+  - IN_PROGRESS
+  - RESOLVED
+  - REOPENED
+  - ESCALATED
+  - ENGINEERING
+  - CLOSED
+  - ARCHIVED
+
+initial_state: NEW
+terminal_states:
+  - ARCHIVED
+
+# Each transition is a (state_from, trigger) -> state_to entry.
+# The trigger string matches the method.event emitted by a successful call.
+transitions:
+  - from: NEW
+    trigger: ticket_open.accepted
+    to: TRIAGED
+  - from: TRIAGED
+    trigger: routing.assigned
+    to: ASSIGNED
+  - from: ASSIGNED
+    trigger: agent.acknowledged
+    to: IN_PROGRESS
+  - from: IN_PROGRESS
+    trigger: resolution_confirm.passed
+    to: RESOLVED
+  - from: RESOLVED
+    trigger: ticket_reopen.issued
+    to: REOPENED
+  - from: REOPENED
+    trigger: resolution_confirm.passed
+    to: RESOLVED
+  - from: REOPENED
+    trigger: resolution_confirm.failed
+    to: ESCALATED
+  - from: ESCALATED
+    trigger: escalation.start
+    to: ENGINEERING
+  - from: ENGINEERING
+    trigger: escalation.resolved
+    to: RESOLVED
+  - from: RESOLVED
+    trigger: lifecycle.close
+    to: CLOSED
+  - from: CLOSED
+    trigger: lifecycle.archive_window_elapsed
+    to: ARCHIVED
+
+# Mapping from method name -> set of triggers it can emit.
+# Used to check that a method call is plausibly in the right transition class.
+method_triggers:
+  ticket_open: [ticket_open.accepted]
+  ticket_get: []  # query-only, no state change
+  ticket_status: []
+  ticket_reopen: [ticket_reopen.issued]
+  resolution_confirm: [resolution_confirm.passed, resolution_confirm.failed]
+  ticket_history: []
+  admin_agent_add: []
+  admin_escalate: [escalation.start, escalation.resolved]
+  admin_lifecycle_apply: [lifecycle.close, lifecycle.archive_window_elapsed]

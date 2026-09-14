@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-c-fixture-think",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Opening from NEW emits ticket_open.accepted."
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

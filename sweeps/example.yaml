@@ -1,0 +1,18 @@
+# Example sweep specification.
+#
+# Generates train_configs/.generated/example-{slug}.yaml for each combination
+# of axis values. Each generated config uses `extends: ../phase1-sft.yaml` (Task 7.1)
+# plus the overrides for that combo.
+#
+# The `base` path is relative to train_configs/.generated/ (where generated configs
+# are written). Since phase1-sft.yaml lives in train_configs/, use ../phase1-sft.yaml.
+#
+# Usage:
+#     just sweep sweeps/example.yaml
+#     # Or dry-run (generate configs without invoking just train):
+#     uv run python scripts/sweep.py sweeps/example.yaml --dry-run
+
+base: ../phase1-sft.yaml
+axes:
+  lora.r: [8, 16, 32]
+  seed: [42, 7]

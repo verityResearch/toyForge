@@ -1,0 +1,714 @@
+# Hand-seeded trajectories covering the support-ticket state machine.
+#
+# Coverage: 9 of 11 transitions plus queries and a multi-step recovery.
+# Gap (intentional): TRIAGED -> ASSIGNED and ASSIGNED -> IN_PROGRESS are background
+#   transitions — the routing engine assigns an agent and the agent acknowledges in
+#   their own console, so no client method in the 9-method API emits those triggers
+#   (routing.assigned, agent.acknowledged). They are exercised only as prior states.
+
+version: "1"
+seeds:
+
+  # 1. NEW -> TRIAGED  via ticket_open.accepted
+  - trajectory_id: seed_open_basic
+    initial_state: NEW
+    difficulty: easy
+    source: hand_seed
+    description: "Open a new ticket from NEW."
+    steps:
+      - prompt_context: { prior_state: NEW, situation: "A customer reports that the office printer is offline." }
+        thinking: "The ticket is in NEW. ticket_open with the requester, the message text, and a lifecycle profile emits ticket_open.accepted, moving the ticket to TRIAGED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_open
+          params:
+            requester_id: "user:alice"
+            body_text: "Office printer shows offline for everyone on floor 3."
+            lifecycle_profile: "standard"
+          id: 1
+        expected_trigger: ticket_open.accepted
+        expected_state_after: TRIAGED
+    final_state: TRIAGED
+
+  # 2. IN_PROGRESS -> RESOLVED  via resolution_confirm.passed
+  - trajectory_id: seed_confirm_in_progress_to_resolved
+    initial_state: IN_PROGRESS
+    difficulty: easy
+    source: hand_seed
+    description: "Confirm the fix on an in-progress ticket to resolve it."
+    steps:
+      - prompt_context: { prior_state: IN_PROGRESS, situation: "The agent restarted the print spooler and the customer says printing works again." }
+        thinking: "From IN_PROGRESS, resolution_confirm.passed transitions to RESOLVED. I call resolution_confirm with the review_id and resolution_notes recording what was done."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-init-1"
+            resolution_notes: { steps_taken: ["restart spooler", "test print"], note_type: "customer_confirmation", agent_id: "agent-1" }
+          id: 1
+        expected_trigger: resolution_confirm.passed
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # 3. RESOLVED -> REOPENED  via ticket_reopen.issued
+  - trajectory_id: seed_reopen_resolved
+    initial_state: RESOLVED
+    difficulty: easy
+    source: hand_seed
+    description: "Reopen a resolved ticket after the customer reports the problem is back."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "The customer on T-7 writes that the printer went offline again this morning." }
+        thinking: "From RESOLVED, ticket_reopen emits ticket_reopen.issued and moves to REOPENED. I provide the ticket_id and a reopen_reason."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_reopen
+          params:
+            ticket_id: "T-7"
+            reopen_reason: "issue-recurred"
+          id: 1
+        expected_trigger: ticket_reopen.issued
+        expected_state_after: REOPENED
+    final_state: REOPENED
+
+  # 4. REOPENED -> RESOLVED  via resolution_confirm.passed
+  - trajectory_id: seed_confirm_reopened_pass
+    initial_state: REOPENED
+    difficulty: easy
+    source: hand_seed
+    description: "A reopened ticket's second fix is confirmed and it returns to resolved."
+    steps:
+      - prompt_context: { prior_state: REOPENED, situation: "The agent replaced the printer's network cable; the customer confirms it stays online." }
+        thinking: "resolution_confirm on a REOPENED ticket with a confirmed fix emits resolution_confirm.passed and returns to RESOLVED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-7-1"
+            resolution_notes: { steps_taken: ["replace cable", "monitor 1h", "customer check"], note_type: "customer_confirmation", agent_id: "agent-3" }
+          id: 1
+        expected_trigger: resolution_confirm.passed
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # 5. REOPENED -> ESCALATED  via resolution_confirm.failed
+  - trajectory_id: seed_confirm_reopened_fail
+    initial_state: REOPENED
+    difficulty: medium
+    source: hand_seed
+    description: "A reopened ticket's fix is rejected and the ticket escalates."
+    steps:
+      - prompt_context: { prior_state: REOPENED, situation: "The customer says the new cable did not help — the printer still drops off the network." }
+        thinking: "resolution_confirm on a REOPENED ticket whose fix the customer rejected emits resolution_confirm.failed, taking the ticket to ESCALATED. Front-line fixes are exhausted."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-7-2"
+            resolution_notes: { steps_taken: ["replace cable"], note_type: "customer_rejected", agent_id: "agent-4" }
+          id: 1
+        expected_trigger: resolution_confirm.failed
+        expected_state_after: ESCALATED
+    final_state: ESCALATED
+
+  # 6. ESCALATED -> ENGINEERING  via escalation.start
+  - trajectory_id: seed_escalation_start
+    initial_state: ESCALATED
+    difficulty: easy
+    source: hand_seed
+    description: "Hand an escalated ticket to engineering."
+    steps:
+      - prompt_context: { prior_state: ESCALATED, situation: "T-7 failed customer confirmation twice; agent-4 requests engineering help." }
+        thinking: "From ESCALATED, admin_escalate emits escalation.start, transitioning to ENGINEERING. I pass the escalating agent_id and the ticket_id."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_escalate
+          params:
+            agent_id: "agent-4"
+            ticket_id: "T-7"
+          id: 1
+        expected_trigger: escalation.start
+        expected_state_after: ENGINEERING
+    final_state: ENGINEERING
+
+  # 7. ENGINEERING -> RESOLVED  via escalation.resolved
+  - trajectory_id: seed_escalation_resolved
+    initial_state: ENGINEERING
+    difficulty: easy
+    source: hand_seed
+    description: "Engineering ships a fix; the ticket returns to resolved."
+    steps:
+      - prompt_context: { prior_state: ENGINEERING, situation: "Engineering pushed a printer firmware update for T-7. Mark the escalation resolved." }
+        thinking: "From ENGINEERING, admin_escalate emits escalation.resolved, returning the ticket to RESOLVED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_escalate
+          params:
+            agent_id: "agent-4"
+            ticket_id: "T-7"
+          id: 1
+        expected_trigger: escalation.resolved
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # 8. RESOLVED -> CLOSED  via lifecycle.close
+  - trajectory_id: seed_lifecycle_close
+    initial_state: RESOLVED
+    difficulty: easy
+    source: hand_seed
+    description: "Close a resolved ticket."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "T-7 has stayed resolved for the 7-day confirmation period; close it." }
+        thinking: "admin_lifecycle_apply with a close profile emits lifecycle.close and moves RESOLVED -> CLOSED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_lifecycle_apply
+          params:
+            lifecycle_profile: "close.resolved"
+          id: 1
+        expected_trigger: lifecycle.close
+        expected_state_after: CLOSED
+    final_state: CLOSED
+
+  # 9. CLOSED -> ARCHIVED  via lifecycle.archive_window_elapsed
+  - trajectory_id: seed_lifecycle_archive
+    initial_state: CLOSED
+    difficulty: medium
+    source: hand_seed
+    description: "The archive window has elapsed; archive a closed ticket."
+    steps:
+      - prompt_context: { prior_state: CLOSED, situation: "T-7 has been closed for 90 days, past the archive window." }
+        thinking: "admin_lifecycle_apply with an archive profile emits lifecycle.archive_window_elapsed, moving CLOSED -> ARCHIVED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_lifecycle_apply
+          params:
+            lifecycle_profile: "archive.window_elapsed"
+          id: 1
+        expected_trigger: lifecycle.archive_window_elapsed
+        expected_state_after: ARCHIVED
+    final_state: ARCHIVED
+
+  # 10. Query: ticket_status from RESOLVED (no state change)
+  - trajectory_id: seed_query_status_resolved
+    initial_state: RESOLVED
+    difficulty: easy
+    source: hand_seed
+    description: "Check the status of a resolved ticket — no state change."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "A team lead wants to know the current state of T-42." }
+        thinking: "ticket_status is query-only and doesn't emit a trigger. State stays at RESOLVED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_status
+          params:
+            ticket_id: "T-42"
+          id: 1
+    final_state: RESOLVED
+
+  # 11. Query: ticket_history from REOPENED (no state change)
+  - trajectory_id: seed_query_history_reopened
+    initial_state: REOPENED
+    difficulty: easy
+    source: hand_seed
+    description: "Read a reopened ticket's history."
+    steps:
+      - prompt_context: { prior_state: REOPENED, situation: "The agent wants to see what was tried on T-7 before it was reopened." }
+        thinking: "ticket_history is query-only; state stays at REOPENED. I pass the ticket_id and a time window."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_history
+          params:
+            ticket_id: "T-7"
+            window: { from_utc: "2026-05-01T00:00:00Z", to_utc: "2026-05-14T23:59:59Z" }
+          id: 1
+    final_state: REOPENED
+
+  # 12. Multi-step recovery: RESOLVED -> REOPENED -> RESOLVED
+  - trajectory_id: seed_multistep_reopen_then_confirm
+    initial_state: RESOLVED
+    difficulty: hard
+    source: hand_seed
+    description: "Reopen a ticket, then confirm the second fix — full round trip."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "The customer on T-9 says their VPN disconnects again." }
+        thinking: "Step 1: ticket_reopen moves RESOLVED -> REOPENED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_reopen
+          params:
+            ticket_id: "T-9"
+            reopen_reason: "issue-recurred"
+          id: 1
+        expected_trigger: ticket_reopen.issued
+        expected_state_after: REOPENED
+      - prompt_context: { prior_state: REOPENED, situation: "After a client reinstall, the customer confirms the VPN stays connected (review rv-9-1)." }
+        thinking: "Step 2: resolution_confirm.passed returns REOPENED -> RESOLVED, completing the round trip."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-9-1"
+            resolution_notes: { steps_taken: ["reinstall client", "customer check"], note_type: "customer_confirmation", agent_id: "agent-1" }
+          id: 2
+        expected_trigger: resolution_confirm.passed
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # --- BATCH A: Method coverage ---
+
+  # 13. Query: ticket_get from RESOLVED (no state change)
+  - trajectory_id: seed_query_get_resolved
+    initial_state: RESOLVED
+    difficulty: easy
+    source: hand_seed
+    description: "Fetch a resolved ticket — query-only, no state change."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "A new agent wants to read the full thread of T-55, which is already resolved." }
+        thinking: "ticket_get is a query-only method with no triggers. The state remains RESOLVED after the call. I just need the ticket_id."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_get
+          params:
+            ticket_id: "T-55"
+          id: 1
+    final_state: RESOLVED
+
+  # 14. Query: admin_agent_add from RESOLVED (no state change)
+  - trajectory_id: seed_admin_agent_add
+    initial_state: RESOLVED
+    difficulty: easy
+    source: hand_seed
+    description: "Add a new support agent — admin method, no state change."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "A new support agent, agent-10, joins the network team and must be added to the roster." }
+        thinking: "admin_agent_add registers an agent profile but does not emit any trigger — it's an admin operation with no effect on this ticket's state. State stays RESOLVED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_agent_add
+          params:
+            agent_profile: { agent_id: "agent-10", team: "network", timezone: "America/Chicago" }
+          id: 1
+    final_state: RESOLVED
+
+  # --- BATCH B: Long-recovery multi-step ---
+
+  # 15. RESOLVED -> REOPENED -> ESCALATED -> ENGINEERING -> RESOLVED (4-step full recovery)
+  - trajectory_id: seed_multistep_full_recovery
+    initial_state: RESOLVED
+    difficulty: hard
+    source: hand_seed
+    description: "Full recovery path: reopened, fix rejected, escalated to engineering, engineering resolves."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "The customer on T-20 reports that the expense app crashes on submit again. agent-6 owns it." }
+        thinking: "Step 1: ticket_reopen from RESOLVED emits ticket_reopen.issued, moving the ticket to REOPENED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_reopen
+          params:
+            ticket_id: "T-20"
+            reopen_reason: "issue-recurred"
+          id: 1
+        expected_trigger: ticket_reopen.issued
+        expected_state_after: REOPENED
+      - prompt_context: { prior_state: REOPENED, situation: "Clearing the app cache did not help; the customer rejects the fix on review rv-20-1." }
+        thinking: "Step 2: resolution_confirm with a rejected fix emits resolution_confirm.failed, moving REOPENED -> ESCALATED. The crash reproduces after the standard fixes, so front-line support can't close it."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-20-1"
+            resolution_notes: { steps_taken: ["clear cache"], note_type: "customer_rejected", agent_id: "agent-6" }
+          id: 2
+        expected_trigger: resolution_confirm.failed
+        expected_state_after: ESCALATED
+      - prompt_context: { prior_state: ESCALATED, situation: "T-20 reproduces on every submit; agent-6 hands it to engineering." }
+        thinking: "Step 3: admin_escalate from ESCALATED emits escalation.start, transitioning to ENGINEERING."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_escalate
+          params:
+            agent_id: "agent-6"
+            ticket_id: "T-20"
+          id: 3
+        expected_trigger: escalation.start
+        expected_state_after: ENGINEERING
+      - prompt_context: { prior_state: ENGINEERING, situation: "Engineering shipped a patch for the submit crash on T-20 and the customer confirmed it works." }
+        thinking: "Step 4: admin_escalate from ENGINEERING emits escalation.resolved, returning the ticket to RESOLVED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_escalate
+          params:
+            agent_id: "agent-6"
+            ticket_id: "T-20"
+          id: 4
+        expected_trigger: escalation.resolved
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # 16. Second flavor of full 4-step recovery (different ticket/agent IDs)
+  - trajectory_id: seed_multistep_reopen_fail_then_engineering
+    initial_state: RESOLVED
+    difficulty: hard
+    source: hand_seed
+    description: "Second full-recovery flavor: reopen, fix rejected, escalate, engineering resolves — different ticket and agent."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "The customer on T-33, handled by agent-2, says password resets still don't arrive by email." }
+        thinking: "Step 1: ticket_reopen from RESOLVED emits ticket_reopen.issued and moves to REOPENED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_reopen
+          params:
+            ticket_id: "T-33"
+            reopen_reason: "issue-recurred"
+          id: 1
+        expected_trigger: ticket_reopen.issued
+        expected_state_after: REOPENED
+      - prompt_context: { prior_state: REOPENED, situation: "Review rv-33-1: whitelisting the sender did not help; the reset emails never leave the outbound queue." }
+        thinking: "Step 2: resolution_confirm.failed moves REOPENED -> ESCALATED because the notes show the fault is upstream of the mailbox — the outbound queue never sends, so no client-side fix can work."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-33-1"
+            resolution_notes: { steps_taken: ["whitelist sender"], note_type: "customer_rejected", agent_id: "agent-2" }
+          id: 2
+        expected_trigger: resolution_confirm.failed
+        expected_state_after: ESCALATED
+      - prompt_context: { prior_state: ESCALATED, situation: "Outbound mail queue stuck is confirmed; escalate T-33 to engineering." }
+        thinking: "Step 3: admin_escalate from ESCALATED emits escalation.start, moving to ENGINEERING."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_escalate
+          params:
+            agent_id: "agent-2"
+            ticket_id: "T-33"
+          id: 3
+        expected_trigger: escalation.start
+        expected_state_after: ENGINEERING
+      - prompt_context: { prior_state: ENGINEERING, situation: "Engineering restarted the mail relay and the queued reset emails for T-33 were delivered." }
+        thinking: "Step 4: admin_escalate from ENGINEERING emits escalation.resolved, returning T-33 to RESOLVED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_escalate
+          params:
+            agent_id: "agent-2"
+            ticket_id: "T-33"
+          id: 4
+        expected_trigger: escalation.resolved
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # 17. RESOLVED -> CLOSED -> ARCHIVED (2-step lifecycle)
+  - trajectory_id: seed_multistep_close_then_archive
+    initial_state: RESOLVED
+    difficulty: medium
+    source: hand_seed
+    description: "Full lifecycle end: close a resolved ticket, then archive it when the window elapses."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "The confirmation period for T-15 has passed with no reply from the customer; close it." }
+        thinking: "Step 1: admin_lifecycle_apply with a close profile from RESOLVED emits lifecycle.close and moves to CLOSED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_lifecycle_apply
+          params:
+            lifecycle_profile: "close.resolved"
+          id: 1
+        expected_trigger: lifecycle.close
+        expected_state_after: CLOSED
+      - prompt_context: { prior_state: CLOSED, situation: "T-15 has been closed past the 90-day archive window." }
+        thinking: "Step 2: admin_lifecycle_apply with an archive profile from CLOSED emits lifecycle.archive_window_elapsed, moving to ARCHIVED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_lifecycle_apply
+          params:
+            lifecycle_profile: "archive.window_elapsed"
+          id: 2
+        expected_trigger: lifecycle.archive_window_elapsed
+        expected_state_after: ARCHIVED
+    final_state: ARCHIVED
+
+  # --- BATCH C: Query diversity from varied prior states ---
+
+  # 18. Query: ticket_status from NEW
+  - trajectory_id: seed_query_status_new
+    initial_state: NEW
+    difficulty: easy
+    source: hand_seed
+    description: "Check ticket_status for a ticket still in NEW."
+    steps:
+      - prompt_context: { prior_state: NEW, situation: "A customer asks whether T-100 has been picked up yet — it is still in NEW." }
+        thinking: "ticket_status is query-only; it does not emit a trigger. The state remains NEW after the call."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_status
+          params:
+            ticket_id: "T-100"
+          id: 1
+    final_state: NEW
+
+  # 19. Query: ticket_status from TRIAGED
+  - trajectory_id: seed_query_status_triaged
+    initial_state: TRIAGED
+    difficulty: easy
+    source: hand_seed
+    description: "Check ticket_status for a ticket in TRIAGED."
+    steps:
+      - prompt_context: { prior_state: TRIAGED, situation: "T-101 was just opened; the customer checks that it was received." }
+        thinking: "ticket_status is a query method with no triggers. State stays TRIAGED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_status
+          params:
+            ticket_id: "T-101"
+          id: 1
+    final_state: TRIAGED
+
+  # 20. Query: ticket_status from IN_PROGRESS
+  - trajectory_id: seed_query_status_in_progress
+    initial_state: IN_PROGRESS
+    difficulty: easy
+    source: hand_seed
+    description: "Check ticket_status for a ticket in IN_PROGRESS, before resolution."
+    steps:
+      - prompt_context: { prior_state: IN_PROGRESS, situation: "T-102 has an agent working on it but no fix yet; a team lead checks where it stands." }
+        thinking: "ticket_status does not emit a trigger; state stays IN_PROGRESS. I pass the ticket_id."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_status
+          params:
+            ticket_id: "T-102"
+          id: 1
+    final_state: IN_PROGRESS
+
+  # 21. Query: ticket_status from ESCALATED
+  - trajectory_id: seed_query_status_escalated
+    initial_state: ESCALATED
+    difficulty: easy
+    source: hand_seed
+    description: "Check ticket_status while a ticket is ESCALATED."
+    steps:
+      - prompt_context: { prior_state: ESCALATED, situation: "Before handing it to engineering, an agent checks the status of T-103 to confirm it is ESCALATED." }
+        thinking: "ticket_status is query-only. State remains ESCALATED — this is just a status check before calling admin_escalate."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_status
+          params:
+            ticket_id: "T-103"
+          id: 1
+    final_state: ESCALATED
+
+  # 22. Query: ticket_history from IN_PROGRESS
+  - trajectory_id: seed_query_history_in_progress
+    initial_state: IN_PROGRESS
+    difficulty: easy
+    source: hand_seed
+    description: "Read ticket_history while a ticket is IN_PROGRESS."
+    steps:
+      - prompt_context: { prior_state: IN_PROGRESS, situation: "A team lead reviews what has been tried on T-50 before asking for confirmation." }
+        thinking: "ticket_history is query-only; no trigger is emitted and state stays IN_PROGRESS. I pass the ticket_id and a time window."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_history
+          params:
+            ticket_id: "T-50"
+            window: { from_utc: "2026-04-01T00:00:00Z", to_utc: "2026-05-14T23:59:59Z" }
+          id: 1
+    final_state: IN_PROGRESS
+
+  # --- BATCH D: Parameter / scenario variants ---
+
+  # 23. Open with a priority lifecycle profile
+  - trajectory_id: seed_open_priority_outage
+    initial_state: NEW
+    difficulty: easy
+    source: hand_seed
+    description: "Open an outage ticket from a different requester under the priority profile."
+    steps:
+      - prompt_context: { prior_state: NEW, situation: "user:dana-ops reports that the whole sales team cannot log in to the CRM." }
+        thinking: "ticket_open from NEW emits ticket_open.accepted and moves to TRIAGED. requester_id must start with 'user:'. A team-wide login failure warrants the priority lifecycle_profile, and body_text carries the report."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_open
+          params:
+            requester_id: "user:dana-ops"
+            body_text: "Entire sales team gets 'invalid session' on CRM login since 09:10."
+            lifecycle_profile: "priority"
+          id: 1
+        expected_trigger: ticket_open.accepted
+        expected_state_after: TRIAGED
+    final_state: TRIAGED
+
+  # 24. Open with a VIP lifecycle profile
+  - trajectory_id: seed_open_vip
+    initial_state: NEW
+    difficulty: easy
+    source: hand_seed
+    description: "Open a ticket for an executive under the vip profile with a tighter response target."
+    steps:
+      - prompt_context: { prior_state: NEW, situation: "user:cfo-office needs their laptop's disk encryption recovery key before a board meeting." }
+        thinking: "ticket_open from NEW emits ticket_open.accepted, moving to TRIAGED. The vip lifecycle_profile shortens response targets downstream, but the open step itself is the same."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_open
+          params:
+            requester_id: "user:cfo-office"
+            body_text: "Laptop asks for BitLocker recovery key; board meeting at 14:00."
+            lifecycle_profile: "vip"
+          id: 1
+        expected_trigger: ticket_open.accepted
+        expected_state_after: TRIAGED
+    final_state: TRIAGED
+
+  # 25. Reopen with a quality-review reason
+  - trajectory_id: seed_reopen_quality_review
+    initial_state: RESOLVED
+    difficulty: medium
+    source: hand_seed
+    description: "Reopen a resolved ticket flagged by quality review."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "The weekly quality review finds T-25 was resolved without the customer ever confirming." }
+        thinking: "ticket_reopen from RESOLVED with reopen_reason='quality-review' emits ticket_reopen.issued and moves to REOPENED. Quality review can reopen a ticket even without a new complaint."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_reopen
+          params:
+            ticket_id: "T-25"
+            reopen_reason: "quality-review"
+          id: 1
+        expected_trigger: ticket_reopen.issued
+        expected_state_after: REOPENED
+    final_state: REOPENED
+
+  # 26. Escalation after a confirmed product bug
+  - trajectory_id: seed_escalation_after_bug_confirmed
+    initial_state: ESCALATED
+    difficulty: medium
+    source: hand_seed
+    description: "Escalate T-60 to engineering after agent-8 confirms a product bug."
+    steps:
+      - prompt_context: { prior_state: ESCALATED, situation: "agent-8 reproduced the T-60 export failure on a clean account: every CSV over 10,000 rows is truncated." }
+        thinking: "From ESCALATED, admin_escalate emits escalation.start, moving to ENGINEERING. The failure reproduces on a clean account, so it is a product bug, not a configuration issue support can fix. I pass agent-8 and T-60."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_escalate
+          params:
+            agent_id: "agent-8"
+            ticket_id: "T-60"
+          id: 1
+        expected_trigger: escalation.start
+        expected_state_after: ENGINEERING
+    final_state: ENGINEERING
+
+  # 27. Close driven by customer sign-off
+  - trajectory_id: seed_lifecycle_close_signoff
+    initial_state: RESOLVED
+    difficulty: easy
+    source: hand_seed
+    description: "Close a resolved ticket immediately after explicit customer sign-off."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "The customer on T-77 replies 'all fixed, please close' and the account policy allows closing on sign-off." }
+        thinking: "admin_lifecycle_apply with a close profile from RESOLVED emits lifecycle.close and moves to CLOSED. Explicit sign-off removes the need to wait out the confirmation period."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_lifecycle_apply
+          params:
+            lifecycle_profile: "close.customer_signoff"
+          id: 1
+        expected_trigger: lifecycle.close
+        expected_state_after: CLOSED
+    final_state: CLOSED
+
+  # --- BATCH E: "Why this transition" reasoning depth ---
+
+  # 28. REOPENED -> RESOLVED with verbose explanation
+  - trajectory_id: seed_confirm_explained_pass
+    initial_state: REOPENED
+    difficulty: medium
+    source: hand_seed
+    description: "Confirm a reopened ticket's fix; verbose reasoning explains why the evidence is sufficient."
+    steps:
+      - prompt_context: { prior_state: REOPENED, situation: "Review rv-45-1: after a DNS fix, the customer's site loaded from three networks and they confirmed in writing." }
+        thinking: "From REOPENED, resolution_confirm.passed returns the ticket to RESOLVED. The original complaint was that the site would not load from the office network. The notes show the fix (a corrected DNS record), a test from three separate networks, and written customer confirmation. The recurrence that caused the reopen is directly addressed and independently checked, so resolution_confirm.passed is the correct trigger here."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-45-1"
+            resolution_notes: { steps_taken: ["fix DNS record", "test office network", "test mobile", "test home"], note_type: "customer_confirmation", agent_id: "agent-5" }
+          id: 1
+        expected_trigger: resolution_confirm.passed
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # 29. REOPENED -> ESCALATED with explanation of a rejected fix
+  - trajectory_id: seed_confirm_explained_fail
+    initial_state: REOPENED
+    difficulty: medium
+    source: hand_seed
+    description: "Confirmation fails because the fix only masked the symptom; verbose reasoning explains why."
+    steps:
+      - prompt_context: { prior_state: REOPENED, situation: "Review rv-18-2: the agent's workaround works, but only if the customer logs in twice every morning." }
+        thinking: "From REOPENED, resolution_confirm.failed moves the ticket to ESCALATED. The notes show a single step — a workaround — and the customer still has to log in twice daily. The root cause, a session token expiring early, is untouched, and the ticket was already reopened once for the same symptom. A workaround that needs daily repetition does not meet the resolution bar, so the correct trigger is resolution_confirm.failed, escalating the ticket."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-18-2"
+            resolution_notes: { steps_taken: ["workaround: log in twice"], note_type: "customer_rejected", agent_id: "agent-9" }
+          id: 1
+        expected_trigger: resolution_confirm.failed
+        expected_state_after: ESCALATED
+    final_state: ESCALATED
+
+  # 30. ENGINEERING -> RESOLVED with explanation of the fix
+  - trajectory_id: seed_escalation_resolved_explained
+    initial_state: ENGINEERING
+    difficulty: medium
+    source: hand_seed
+    description: "Engineering resolves an escalation; verbose thinking explains the return to RESOLVED."
+    steps:
+      - prompt_context: { prior_state: ENGINEERING, situation: "Engineering fixed the CSV truncation for T-60; agent-3 and agent-11 verified 50,000-row exports on two accounts." }
+        thinking: "From ENGINEERING, admin_escalate emits escalation.resolved and returns the ticket to RESOLVED. Engineering found the export job's row limit, raised it, and deployed the change. Two agents independently verified large exports on separate accounts, so the fix is confirmed beyond the original reporter. With the product bug fixed and verified, the trigger is escalation.resolved and the ticket returns to RESOLVED for customer follow-up."
+        tool_call:
+          jsonrpc: "2.0"
+          method: admin_escalate
+          params:
+            agent_id: "agent-8"
+            ticket_id: "T-60"
+          id: 1
+        expected_trigger: escalation.resolved
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # 31. Multi-step NEW→TRIAGED→query (GRPO reachability seed)
+  - trajectory_id: seed_multistep_open_then_get
+    initial_state: NEW
+    final_state: TRIAGED
+    difficulty: medium
+    source: hand_seed
+    description: "Open a new ticket then fetch it."
+    steps:
+      - prompt_context:
+          prior_state: NEW
+          situation: "user:carol reports that her monitor flickers (becomes T-99)."
+        thinking: "NEW requires ticket_open. Trigger is ticket_open.accepted leading to TRIAGED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_open
+          params:
+            requester_id: "user:carol"
+            body_text: "External monitor flickers every few seconds."
+            lifecycle_profile: "standard"
+          id: 1
+        expected_trigger: ticket_open.accepted
+        expected_state_after: TRIAGED
+      - prompt_context:
+          prior_state: TRIAGED
+          situation: "Carol wants to read back T-99 to check her report was recorded."
+        thinking: "TRIAGED + query → ticket_get. No state change; ticket_id from prior call."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_get
+          params:
+            ticket_id: "T-99"
+          id: 2

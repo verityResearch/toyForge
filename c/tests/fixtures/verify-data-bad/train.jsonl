@@ -1,0 +1,1 @@
+{"trajectory_id":"bad_initial_state","initial_state":"UNKNOWN","steps":[{"prompt_context":{"prior_state":"NEW"},"thinking":"x","tool_call":{}}]}

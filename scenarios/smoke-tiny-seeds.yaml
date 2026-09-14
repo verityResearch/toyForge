@@ -1,0 +1,107 @@
+# Tiny smoke-test seed corpus — first 5 seeds of scenarios/seeds.yaml.
+# Used by `just smoke-tiny` for fast pipeline sanity checks.
+# DO NOT add new seeds here — keep it in lockstep with the first 5 of seeds.yaml.
+
+version: "1"
+seeds:
+
+  # 1. NEW -> TRIAGED  via ticket_open.accepted
+  - trajectory_id: seed_open_basic
+    initial_state: NEW
+    difficulty: easy
+    source: hand_seed
+    description: "Open a new ticket from NEW."
+    steps:
+      - prompt_context: { prior_state: NEW, situation: "A customer reports that the office printer is offline." }
+        thinking: "The ticket is in NEW. ticket_open with the requester, the message text, and a lifecycle profile emits ticket_open.accepted, moving the ticket to TRIAGED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_open
+          params:
+            requester_id: "user:alice"
+            body_text: "Office printer shows offline for everyone on floor 3."
+            lifecycle_profile: "standard"
+          id: 1
+        expected_trigger: ticket_open.accepted
+        expected_state_after: TRIAGED
+    final_state: TRIAGED
+
+  # 2. IN_PROGRESS -> RESOLVED  via resolution_confirm.passed
+  - trajectory_id: seed_confirm_in_progress_to_resolved
+    initial_state: IN_PROGRESS
+    difficulty: easy
+    source: hand_seed
+    description: "Confirm the fix on an in-progress ticket to resolve it."
+    steps:
+      - prompt_context: { prior_state: IN_PROGRESS, situation: "The agent restarted the print spooler and the customer says printing works again." }
+        thinking: "From IN_PROGRESS, resolution_confirm.passed transitions to RESOLVED. I call resolution_confirm with the review_id and resolution_notes recording what was done."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-init-1"
+            resolution_notes: { steps_taken: ["restart spooler", "test print"], note_type: "customer_confirmation", agent_id: "agent-1" }
+          id: 1
+        expected_trigger: resolution_confirm.passed
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # 3. RESOLVED -> REOPENED  via ticket_reopen.issued
+  - trajectory_id: seed_reopen_resolved
+    initial_state: RESOLVED
+    difficulty: easy
+    source: hand_seed
+    description: "Reopen a resolved ticket after the customer reports the problem is back."
+    steps:
+      - prompt_context: { prior_state: RESOLVED, situation: "The customer on T-7 writes that the printer went offline again this morning." }
+        thinking: "From RESOLVED, ticket_reopen emits ticket_reopen.issued and moves to REOPENED. I provide the ticket_id and a reopen_reason."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_reopen
+          params:
+            ticket_id: "T-7"
+            reopen_reason: "issue-recurred"
+          id: 1
+        expected_trigger: ticket_reopen.issued
+        expected_state_after: REOPENED
+    final_state: REOPENED
+
+  # 4. REOPENED -> RESOLVED  via resolution_confirm.passed
+  - trajectory_id: seed_confirm_reopened_pass
+    initial_state: REOPENED
+    difficulty: easy
+    source: hand_seed
+    description: "A reopened ticket's second fix is confirmed and it returns to resolved."
+    steps:
+      - prompt_context: { prior_state: REOPENED, situation: "The agent replaced the printer's network cable; the customer confirms it stays online." }
+        thinking: "resolution_confirm on a REOPENED ticket with a confirmed fix emits resolution_confirm.passed and returns to RESOLVED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-7-1"
+            resolution_notes: { steps_taken: ["replace cable", "monitor 1h", "customer check"], note_type: "customer_confirmation", agent_id: "agent-3" }
+          id: 1
+        expected_trigger: resolution_confirm.passed
+        expected_state_after: RESOLVED
+    final_state: RESOLVED
+
+  # 5. REOPENED -> ESCALATED  via resolution_confirm.failed
+  - trajectory_id: seed_confirm_reopened_fail
+    initial_state: REOPENED
+    difficulty: medium
+    source: hand_seed
+    description: "A reopened ticket's fix is rejected and the ticket escalates."
+    steps:
+      - prompt_context: { prior_state: REOPENED, situation: "The customer says the new cable did not help — the printer still drops off the network." }
+        thinking: "resolution_confirm on a REOPENED ticket whose fix the customer rejected emits resolution_confirm.failed, taking the ticket to ESCALATED. Front-line fixes are exhausted."
+        tool_call:
+          jsonrpc: "2.0"
+          method: resolution_confirm
+          params:
+            review_id: "rv-7-2"
+            resolution_notes: { steps_taken: ["replace cable"], note_type: "customer_rejected", agent_id: "agent-4" }
+          id: 1
+        expected_trigger: resolution_confirm.failed
+        expected_state_after: ESCALATED
+    final_state: ESCALATED

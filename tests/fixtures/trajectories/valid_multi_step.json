@@ -1,0 +1,24 @@
+{
+  "trajectory_id": "valid_multi_step",
+  "initial_state": "NEW",
+  "steps": [
+    {
+      "prompt_context": { "prior_state": "NEW", "situation": "open a new ticket" },
+      "thinking": "Start by opening the ticket.",
+      "tool_call": { "jsonrpc": "2.0", "method": "ticket_open",
+        "params": { "requester_id": "user:1", "body_text": "YWJj", "lifecycle_profile": "std" }, "id": 1 },
+      "expected_trigger": "ticket_open.accepted",
+      "expected_state_after": "TRIAGED"
+    },
+    {
+      "prompt_context": { "prior_state": "TRIAGED" },
+      "thinking": "Route the new ticket.",
+      "tool_call": { "jsonrpc": "2.0", "method": "admin_escalate",
+        "params": { "agent_id": "agent-1", "ticket_id": "T-1" }, "id": 2 },
+      "expected_trigger": "routing.assigned",
+      "expected_state_after": "ASSIGNED"
+    }
+  ],
+  "final_state": "ASSIGNED",
+  "source": "hand_seed"
+}

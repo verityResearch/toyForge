@@ -1,0 +1,13 @@
+root ::= "{" ws jsonrpc "," ws method "," ws params "," ws id ws "}"
+jsonrpc ::= "\"jsonrpc\"" ws ":" ws "\"2.0\""
+method ::= "\"method\"" ws ":" ws ("\"admin_agent_add\"" | "\"admin_escalate\"" | "\"admin_lifecycle_apply\"" | "\"resolution_confirm\"" | "\"ticket_get\"" | "\"ticket_history\"" | "\"ticket_open\"" | "\"ticket_reopen\"" | "\"ticket_status\"")
+params ::= "\"params\"" ws ":" ws object
+id ::= "\"id\"" ws ":" ws (number | string)
+object ::= "{" ws (member ("," ws member)*)? ws "}"
+member ::= string ws ":" ws value
+array ::= "[" ws (value ("," ws value)*)? ws "]"
+value ::= object | array | string | number | "true" | "false" | "null"
+string ::= "\"" char* "\""
+char ::= [^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+number ::= "-"? ([0-9] | [1-9] [0-9]*) ("." [0-9]+)? ([eE] [-+]? [0-9]+)?
+ws ::= [ \t\n\r]*

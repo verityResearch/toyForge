@@ -1,0 +1,49 @@
+# Trajectory schema for toyForge training data.
+# A trajectory is a sequence of steps; each step has a <think> trace and a tool call.
+
+version: "1"
+
+trajectory:
+  type: object
+  required: [trajectory_id, initial_state, steps]
+  properties:
+    trajectory_id: { type: string }
+    description:   { type: string }
+    initial_state: { type: string, enum_ref: state-machine.states }
+    steps:
+      type: array
+      minItems: 1
+      items: { $ref: "#/step" }
+    final_state:        { type: string }
+    final_answer:       { type: string }      # optional human-readable summary
+    difficulty:         { type: string, enum: [easy, medium, hard] }
+    source:             { type: string, enum: [hand_seed, teacher_expansion] }
+    teacher_id:         { type: string }      # if source = teacher_expansion
+
+step:
+  type: object
+  required: [prompt_context, thinking, tool_call]
+  properties:
+    prompt_context:
+      # State and prior history visible to the policy at this step.
+      type: object
+      required: [prior_state]
+      properties:
+        prior_state: { type: string }
+        prior_calls: { type: array, items: { type: object } }
+        situation:   { type: string }
+    thinking:
+      # The <think>…</think> reasoning content (without the tags themselves).
+      type: string
+      minLength: 1
+    tool_call:
+      # The JSON-RPC request body (must match jsonrpc-methods.json).
+      type: object
+    expected_state_after:
+      # The state the ticket should be in after this call succeeds.
+      # Required for state-changing methods; intentionally omitted for query-only
+      # methods, whose state remains unchanged.
+      type: string
+    expected_trigger:
+      # The trigger string the call is expected to emit (for transition check).
+      type: string

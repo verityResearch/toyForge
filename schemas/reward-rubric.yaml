@@ -1,0 +1,43 @@
+# Reward rubric: per-step subscores -> scalar reward.
+# Used by the verifier in reward mode (Phase 2 GRPO).
+
+version: "1"
+
+# Subscore types (all normalized to [0, 1]).
+subscores:
+  - parse              # <think>…</think>{json} parsed
+  - schema             # json-rpc params match method schema
+  - method_known       # method name is one of the 9
+  - precondition_met   # state machine permits call from prior_state
+  - transition_valid   # resulting trigger maps to a valid transition
+  - sequence_optimal   # heuristic: 1.0 if shortest path, discounted otherwise
+
+# Default weights (also serves as the `shaped` preset).
+default_weights:
+  parse:             0.10
+  schema:            0.20
+  method_known:      0.10
+  precondition_met:  0.20
+  transition_valid:  0.30
+  sequence_optimal:  0.10
+
+# Ablation presets — switching reward shape is a one-config-change experiment.
+presets:
+  shaped:
+    parse:             0.10
+    schema:            0.20
+    method_known:      0.10
+    precondition_met:  0.20
+    transition_valid:  0.30
+    sequence_optimal:  0.10
+  binary:
+    # R1-Zero style: only the final state correctness matters.
+    transition_valid:  1.0
+  schema_only:
+    # Debugging-only: rewards just for valid JSON-RPC shape.
+    parse:  0.5
+    schema: 0.5
+
+# Trajectory-level aggregation.
+# 'mean' = average per-step reward; 'min' = worst step; 'product' = chain integrity.
+aggregation: mean

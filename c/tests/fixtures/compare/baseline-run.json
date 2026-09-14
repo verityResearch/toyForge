@@ -1,0 +1,1 @@
+{"run_name":"baseline-run","n_examples":30,"pass_at_1":0.6,"pass_at_k":0.7,"pass_at_maj":0.6,"k":8,"failure_modes":{}}

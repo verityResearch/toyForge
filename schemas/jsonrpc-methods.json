@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Support-ticket JSON-RPC method I/O schemas",
+  "$defs": {
+    "JsonRpcRequest": {
+      "type": "object",
+      "required": ["jsonrpc", "method", "params", "id"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "method": { "type": "string" },
+        "params": { "type": "object" },
+        "id": { "type": ["string", "integer"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "methods": {
+    "ticket_open": {
+      "params": {
+        "type": "object",
+        "required": ["requester_id", "body_text", "lifecycle_profile"],
+        "properties": {
+          "requester_id": { "type": "string", "pattern": "^user:" },
+          "body_text": { "type": "string", "minLength": 4 },
+          "lifecycle_profile": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ticket_get": {
+      "params": {
+        "type": "object",
+        "required": ["ticket_id"],
+        "properties": { "ticket_id": { "type": "string", "minLength": 1 } },
+        "additionalProperties": false
+      }
+    },
+    "ticket_status": {
+      "params": {
+        "type": "object",
+        "required": ["ticket_id"],
+        "properties": { "ticket_id": { "type": "string", "minLength": 1 } },
+        "additionalProperties": false
+      }
+    },
+    "ticket_reopen": {
+      "params": {
+        "type": "object",
+        "required": ["ticket_id", "reopen_reason"],
+        "properties": {
+          "ticket_id": { "type": "string", "minLength": 1 },
+          "reopen_reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "resolution_confirm": {
+      "params": {
+        "type": "object",
+        "required": ["review_id", "resolution_notes"],
+        "properties": {
+          "review_id": { "type": "string", "minLength": 1 },
+          "resolution_notes": { "type": "object" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ticket_history": {
+      "params": {
+        "type": "object",
+        "required": ["ticket_id", "window"],
+        "properties": {
+          "ticket_id": { "type": "string", "minLength": 1 },
+          "window": {
+            "type": "object",
+            "properties": {
+              "from_utc": { "type": "string", "format": "date-time" },
+              "to_utc":   { "type": "string", "format": "date-time" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "admin_agent_add": {
+      "params": {
+        "type": "object",
+        "required": ["agent_profile"],
+        "properties": { "agent_profile": { "type": "object" } },
+        "additionalProperties": false
+      }
+    },
+    "admin_escalate": {
+      "params": {
+        "type": "object",
+        "required": ["agent_id", "ticket_id"],
+        "properties": {
+          "agent_id":   { "type": "string", "minLength": 1 },
+          "ticket_id": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "admin_lifecycle_apply": {
+      "params": {
+        "type": "object",
+        "required": ["lifecycle_profile"],
+        "properties": { "lifecycle_profile": { "type": "string" } },
+        "additionalProperties": false
+      }
+    }
+  }
+}

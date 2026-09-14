@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-c-fixture-call",
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"jsonrpc\":\"2.0\",\"method\":\"ticket_open\",\"params\":{\"requester_id\":\"user:c\",\"body_text\":\"Yw==\",\"lifecycle_profile\":\"std\"},\"id\":1}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

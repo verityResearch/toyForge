@@ -1,0 +1,16 @@
+{
+  "trajectory_id": "invalid_transition",
+  "initial_state": "NEW",
+  "steps": [
+    {
+      "prompt_context": { "prior_state": "NEW" },
+      "thinking": "Bad: trying to archive from NEW.",
+      "tool_call": { "jsonrpc": "2.0", "method": "admin_lifecycle_apply",
+        "params": { "lifecycle_profile": "archive" }, "id": 1 },
+      "expected_trigger": "lifecycle.archive_window_elapsed",
+      "expected_state_after": "ARCHIVED"
+    }
+  ],
+  "final_state": "ARCHIVED",
+  "source": "hand_seed"
+}

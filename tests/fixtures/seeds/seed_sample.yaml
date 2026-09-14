@@ -1,0 +1,21 @@
+version: "1"
+seeds:
+  - trajectory_id: seed_open_basic
+    initial_state: NEW
+    difficulty: easy
+    source: hand_seed
+    description: "Open a new ticket."
+    steps:
+      - prompt_context: { prior_state: NEW, situation: "Open a new ticket." }
+        thinking: "I should call ticket_open from NEW to transition to TRIAGED."
+        tool_call:
+          jsonrpc: "2.0"
+          method: ticket_open
+          params:
+            requester_id: "user:alice"
+            body_text: "YWJj"
+            lifecycle_profile: "std"
+          id: 1
+        expected_trigger: ticket_open.accepted
+        expected_state_after: TRIAGED
+    final_state: TRIAGED

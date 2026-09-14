@@ -1,0 +1,24 @@
+{
+  "trajectory_id": "valid_minimal",
+  "initial_state": "NEW",
+  "steps": [
+    {
+      "prompt_context": { "prior_state": "NEW", "situation": "open a new ticket" },
+      "thinking": "I need to call ticket_open from NEW to move to TRIAGED.",
+      "tool_call": {
+        "jsonrpc": "2.0",
+        "method": "ticket_open",
+        "params": {
+          "requester_id": "user:1",
+          "body_text": "YWJj",
+          "lifecycle_profile": "std"
+        },
+        "id": 1
+      },
+      "expected_trigger": "ticket_open.accepted",
+      "expected_state_after": "TRIAGED"
+    }
+  ],
+  "final_state": "TRIAGED",
+  "source": "hand_seed"
+}
