@@ -58,6 +58,24 @@ static bool span_is_nonempty_string(TfJsonSpan span) {
   return tf_json_string_decoded_size(span, &decoded_size) && decoded_size > 0;
 }
 
+// Unicode code-point count of an already-decoded, null-terminated UTF-8 C
+// string (as produced by tf_json_object_get_string). JSON Schema's minLength
+// counts code points, not bytes (see string_codepoints() below, used by the
+// general validator on still-encoded JSON spans) -- a plain strlen() here
+// would under-reject multi-byte UTF-8 values shorter than minLength implies
+// and, symmetrically, over-reject nothing, since byte count is always >=
+// code-point count. Same continuation-byte-skipping technique as
+// string_codepoints(), just without a JSON-decode step first.
+static size_t utf8_codepoints_cstr(const char *s) {
+  size_t cps = 0;
+  for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+    if ((*p & 0xC0) != 0x80) {
+      cps++;
+    }
+  }
+  return cps;
+}
+
 static bool validate_string_constraints(
   const char *name,
   const char *value,
@@ -68,7 +86,7 @@ static bool validate_string_constraints(
   char *err,
   size_t err_cap
 ) {
-  if (has_min_length && strlen(value) < min_length) {
+  if (has_min_length && utf8_codepoints_cstr(value) < min_length) {
     snprintf(err, err_cap, "%s must be at least %zu characters", name, min_length);
     return false;
   }
