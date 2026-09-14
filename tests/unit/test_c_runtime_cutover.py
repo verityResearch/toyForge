@@ -8,7 +8,7 @@ EVAL_STRICT_C_RECIPE = (
     'eval-strict-c run_name="phase1-strict-c" '
     'model="toyforge-export" '
     'base_url="http://localhost:8080/v1" '
-    'cstrict_repo=env_var_or_default("CSTRICT_REPO", "."):'
+    'cstrict_repo=env_var_or_default("CSTRICT_REPO", ""):'
 )
 
 

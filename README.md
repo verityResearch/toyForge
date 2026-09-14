@@ -26,7 +26,7 @@ Query methods (`ticket_get`, `ticket_status`, `ticket_history`, `admin_agent_add
 1. **Seeds.** 31 hand-written trajectories in [`scenarios/seeds.yaml`](scenarios/seeds.yaml) cover the reachable transitions, queries, and multi-step recoveries.
 2. **Expansion.** A teacher model (Anthropic or any OpenAI-compatible API) expands seeds into variants. Every variant is verified before admission, with provenance stamped on each row.
 3. **Verifier.** Each step is scored on `parse`, `schema`, `method_known`, `precondition_met`, `transition_valid`, and `sequence_optimal`. The same function grades evaluation runs and, with weights from [`schemas/reward-rubric.yaml`](schemas/reward-rubric.yaml), produces the GRPO reward.
-4. **Training.** SFT cold-start with loss masked to the assistant turn. GRPO with the verifier as reward is scaffolded and in progress.
+4. **Training.** SFT cold-start with loss masked to the assistant turn. **GRPO is not implemented yet** — see [Status](#status).
 5. **Evaluation.** pass@1, pass@k, and majority-vote scoring against held-out trajectories, through Transformers or a llama.cpp server with grammar-constrained decoding.
 
 ## Strict-C port
@@ -72,7 +72,7 @@ The `serve-strict-c` / `eval-strict-c` recipes expect an external strict-C llama
 ## Status
 
 - Verifier, schemas, seeds, teacher expansion, SFT, evaluation, and the C port: implemented and tested.
-- GRPO (Transformers and llama.cpp-native): configuration and dispatch are in place; the trainers are not yet implemented.
+- **GRPO: not implemented.** What exists and is tested: the verifier-as-reward function and its rubric presets, the `method: grpo` config (including a llama.cpp-native variant), and CLI dispatch. What doesn't exist is the training loop itself — rollouts, group-relative advantages, and the policy update. Running `method: grpo` or `just phase2-llamacpp` stops with a `NotImplementedError` that says so, rather than training anything.
 
 ## Contributing
 

@@ -1,8 +1,12 @@
-"""GRPO trainer for Phase 2.
+"""GRPO trainer for Phase 2 — NOT IMPLEMENTED YET.
 
-Reads TrainConfig with `grpo: GRPOConfig` and `adapter_init: Path`. Loads the
-Phase 1 SFT adapter as the initial policy, uses LoRA-adapter-zero as the
-reference (memory-cheap), and runs TRL's GRPOTrainer with our verifier-as-reward.
+What exists: config validation (`grpo:` block and `adapter_init:`), dispatch to the
+llama.cpp-native variant, and the verifier-as-reward function in `toyforge.verifier.reward`.
+
+What does not exist: the training loop. The intended design loads the Phase 1 SFT
+adapter as the initial policy, uses a zero-scaled LoRA adapter as the reference, and
+optimizes group-relative advantages computed from the verifier reward. Until that lands,
+`run_grpo` validates its config and then raises NotImplementedError.
 """
 
 from __future__ import annotations
@@ -30,6 +34,9 @@ def run_grpo(cfg: TrainConfig) -> Path:
         f"k={cfg.grpo.num_generations} beta={cfg.grpo.beta} preset={cfg.grpo.rubric_preset}"
     )
 
-    # TODO: implement (Phase 2 plan tasks 2-7). This skeleton makes the dispatch
-    # surface complete so we can fail loudly with a clear message until then.
-    raise NotImplementedError("GRPO trainer skeleton is in place; implementation pending.")
+    # Not implemented: rollouts, group-relative advantages and the policy update. The
+    # skeleton keeps config + dispatch real and fails loudly instead of pretending to train.
+    raise NotImplementedError(
+        "GRPO is not implemented yet: this is a config-and-dispatch skeleton. The verifier "
+        "reward exists (toyforge.verifier.reward); the training loop does not."
+    )

@@ -309,23 +309,26 @@ eval-b0-llamacpp model="Qwen3-8B-Instruct-GGUF" run="B0-llamacpp-constrained": b
 compare: build-c
     c/build/toyforge-c compare --reports-dir reports --out-path reports/compare.md
 
-# Deploy seam: merge LoRA into base + export a GGUF for the strict-C runtime (c-strict).
+# Deploy seam: merge LoRA into base + export a GGUF for an external strict-C llama.cpp runtime.
 merge-export adapter="out/phase1-sft/adapter" base="Qwen/Qwen3-8B-Instruct" out="out/export" quant="none":
     uv run toyforge merge-export --adapter-dir {{adapter}} --base-model {{base}} --out-dir {{out}} --quant {{quant}}
 
 # End-to-end deploy → eval through the strict-C runtime — one documented flow (args are POSITIONAL):
 #   1) just merge-export                                # adapter -> out/export/model-f16.gguf
 #   2) just serve-strict-c out/export/model-f16.gguf    # start the server on :8080 (own terminal; blocks)
-#   3) just eval-strict-c                               # eval through it; auto-stamps the c-strict HEAD sha
-# Path to a built strict-C llama.cpp server binary (not built here). Set CSTRICT_SERVER; CSTRICT_REPO is stamped into scorecards.
+#   3) just eval-strict-c                               # eval through it; stamps the server build's sha if CSTRICT_REPO is set
+# OPTIONAL and EXTERNAL: the strict-C llama.cpp server is not part of this repository. Point
+# CSTRICT_SERVER at a built binary; optionally set CSTRICT_REPO to its source checkout so the
+# scorecard records which build ran. Everything else in toyForge works without it.
 cstrict-server := env_var_or_default("CSTRICT_SERVER", "llamachat-server")
 
 # Serve an exported GGUF on the strict-C server (live-eval launch config; n_ctx/prompt sized for toyForge's ~2k-token prompts).
 serve-strict-c gguf="out/export/model-f16.gguf" port="8080" n_ctx="5120" max_prompt="4096" max_tokens="256":
-    {{cstrict-server}} {{gguf}} {{port}} {{n_ctx}} {{max_prompt}} {{max_tokens}}
+    command -v "{{cstrict-server}}" >/dev/null 2>&1 || { echo "strict-C server not found: set CSTRICT_SERVER to a built llamachat-server binary (an external build, not part of this repo)" >&2; exit 2; }
+    "{{cstrict-server}}" {{gguf}} {{port}} {{n_ctx}} {{max_prompt}} {{max_tokens}}
 
-# Eval the served GGUF through the strict-C server (constrained JSON-RPC, provider=local). Auto-stamps the c-strict build sha into the scorecard.
-eval-strict-c run_name="phase1-strict-c" model="toyforge-export" base_url="http://localhost:8080/v1" cstrict_repo=env_var_or_default("CSTRICT_REPO", "."): build-c
+# Eval the served GGUF through the strict-C server (constrained JSON-RPC, provider=local). Stamps the server build's sha into the scorecard when CSTRICT_REPO is set, otherwise "unknown".
+eval-strict-c run_name="phase1-strict-c" model="toyforge-export" base_url="http://localhost:8080/v1" cstrict_repo=env_var_or_default("CSTRICT_REPO", ""): build-c
     mkdir -p reports
     c/build/toyforge-c llamacpp-eval \
       --data-path data/test.jsonl \
@@ -339,7 +342,7 @@ eval-strict-c run_name="phase1-strict-c" model="toyforge-export" base_url="http:
       --max-tokens 1024 \
       --temperature 0.0 \
       --sample-temperature 0.7 \
-      --llamacpp-commit "$(git -C {{cstrict_repo}} rev-parse --short HEAD 2>/dev/null || echo unknown)"; \
+      --llamacpp-commit "$( { [ -n "{{cstrict_repo}}" ] && git -C {{cstrict_repo}} rev-parse --short HEAD 2>/dev/null; } || echo unknown)"; \
     rc=$?; test "$rc" -eq 0 -o "$rc" -eq 1
 
 sweep spec:
@@ -347,6 +350,8 @@ sweep spec:
 
 phase1: train eval-phase1
 
+# Phase 2 (GRPO) is NOT implemented yet. Config, CLI dispatch and the verifier reward exist, but
+# the trainer raises NotImplementedError, so this recipe stops with that message.
 phase2-llamacpp config="train_configs/phase2-grpo-llamacpp.yaml":
     uv run toyforge train --config-path {{config}}
 
